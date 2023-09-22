@@ -41,72 +41,35 @@ namespace FileMoverWithZipAndLogger
             {
                 string extension = fileGroup.Key.TrimStart('.');
                 string extensionDirectory = Path.Combine(targetDirectory, extension);
-                string zipFilePath = Path.Combine(targetDirectory, $"{extension}.zip");
+                string currentDay = DateTime.Now.ToString("MM'-'dd'-'yyyy");
+                string dayDirectory = Path.Combine(extensionDirectory, currentDay);
 
                 // Check if a zip file for the extension already exists
-                bool zipExists = File.Exists(zipFilePath);
-
-                // If the zip file exists, unzip it to the extension directory
-                if (zipExists)
-                {
-                    LogMessage($"Unzipping {zipFilePath}", logFilePath);
-                    ZipFile.ExtractToDirectory(zipFilePath, extensionDirectory);
-
-                    // Get the subdirectory created by default
-                    string subdirectory = Directory.GetDirectories(extensionDirectory).FirstOrDefault();
-                    if (subdirectory != null)
-                    {
-                        // Move the files out of the subdirectory and delete it
-                        foreach (var file in Directory.GetFiles(subdirectory))
-                        {
-                            File.Move(file, Path.Combine(extensionDirectory, Path.GetFileName(file)));
-                        }
-                        Directory.Delete(subdirectory);
-                    }
-
-                    // Delete the zip file
-                    LogMessage($"Deleting previous {zipFilePath}", logFilePath);
-                    File.Delete(zipFilePath);
-                }
-                else
+                if (!File.Exists(extensionDirectory))
                 {
                     LogMessage($"Creating directory: {extension}", logFilePath);
                     Directory.CreateDirectory(extensionDirectory);
                 }
 
-                // Get the count of each file name in the extension directory
-                var existingFiles = Directory.GetFiles(extensionDirectory);
-                var fileCount = new Dictionary<string, int>();
-
-                foreach (var existingFile in existingFiles)
+                // Check if a zip file for the daily file already exists
+                if (!File.Exists(dayDirectory))
                 {
-                    string fileName = Path.GetFileName(existingFile);
-                    if (fileCount.ContainsKey(fileName))
-                    {
-                        fileCount[fileName]++;
-                    }
-                    else
-                    {
-                        fileCount[fileName] = 1;
-                    }
+                    LogMessage($"Creating directory: {currentDay}", logFilePath);
+                    Directory.CreateDirectory(dayDirectory);
                 }
-
-                // Add the file count to the fileCounts dictionary for the extension
-                fileCounts[extension] = fileCount;
-
                 // Move the files into the extension directory
                 foreach (var file in fileGroup)
                 {
                     string fileName = Path.GetFileName(file);
-                    string destinationFile = Path.Combine(extensionDirectory, fileName);
+                    string destinationFile = Path.Combine(dayDirectory, fileName);
 
                     // If a file with the same name already exists, rename the new file
                     if (fileCounts[extension].ContainsKey(fileName))
                     {
-                        int count = FindDuplicateFileName(extensionDirectory, fileName);
+                        int count = FindDuplicateFileName(dayDirectory, fileName);
                         string newName = Path.GetFileNameWithoutExtension(fileName) + $" ({count})" + Path.GetExtension(fileName);
                         LogMessage($"Duplicate file found for {fileName}, renaming to {newName}", logFilePath);
-                        destinationFile = Path.Combine(extensionDirectory, newName);
+                        destinationFile = Path.Combine(dayDirectory, newName);
                         fileCounts[extension][fileName] = count;
                     }
                     else
@@ -122,16 +85,16 @@ namespace FileMoverWithZipAndLogger
                 }
 
                 // Zip the extension directory
-                LogMessage($"Zipping {extensionDirectory} to {zipFilePath}", logFilePath);
+                LogMessage($"Zipping {dayDirectory}", logFilePath);
 
-                ZipFile.CreateFromDirectory(extensionDirectory, zipFilePath, CompressionLevel.Optimal, true);
+                ZipFile.CreateFromDirectory(dayDirectory, Path.Combine(extensionDirectory, $"{currentDay}.zip"), CompressionLevel.Optimal, true);
 
                 // Delete the extension directory
-                Directory.Delete(extensionDirectory, true);
+                Directory.Delete(dayDirectory, true);
             }
 
             LogMessage("All files have been moved and zipped.", logFilePath);
-            Console.ReadLine();
+            //Console.ReadLine();
         }
 
         private static int FindDuplicateFileName(string directoryPath, string fileName)
